@@ -1,0 +1,81 @@
+name: Go
+
+on: [push, pull_request]
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.23", "1.24"]
+    name: Lint ${{ matrix.go-version == '1.24' && '(latest)' || '(old)' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          export PATH="$HOME/go/bin:$PATH"
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Build binaries
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o rig-linux-amd64
+          GOOS=linux GOARCH=arm64 go build -o rig-linux-arm64
+          GOOS=darwin GOARCH=amd64 go build -o rig-macos-amd64
+          GOOS=darwin GOARCH=arm64 go build -o rig-macos-arm64
+
+      - name: Upload linux/amd64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rig-linux-amd64
+          path: rig-linux-amd64
+          if-no-files-found: error
+
+      - name: Upload linux/arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rig-linux-arm64
+          path: rig-linux-arm64
+          if-no-files-found: error
+
+      - name: Upload macos/amd64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rig-macos-amd64
+          path: rig-macos-amd64
+          if-no-files-found: error
+
+      - name: Upload macos/arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rig-macos-arm64
+          path: rig-macos-arm64
+          if-no-files-found: error
