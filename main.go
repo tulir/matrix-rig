@@ -48,7 +48,7 @@ type Hashes struct {
 var timestamp = flag.MakeFull("t", "timestamp", "Timestamp of the create event (defaults to current time)", strconv.FormatInt(time.Now().UnixMilli(), 10)).Int64()
 var creator = flag.MakeFull("u", "user_id", "User ID of the room creator", "").String()
 var prefix = flag.MakeFull("p", "prefix", "Prefix for the room ID", "").String()
-var createContent = flag.MakeFull("c", "content", "Create event content", `{"room_version":"org.matrix.msc4051"}`).String()
+var createContent = flag.MakeFull("c", "content", "Create event content", `{"room_version":"org.matrix.msc4291"}`).String()
 var threadCount = flag.MakeFull("k", "threads", "Number of threads to use for bruteforcing", "1").Uint16()
 var logInterval = flag.MakeFull("l", "log-interval", "How many hashes to check before logging status?", "1000000").Uint32()
 var maxSeconds = flag.MakeFull("m", "max-seconds", "Time limit for the bruteforce in seconds", "30").Int()
@@ -56,6 +56,10 @@ var wantHelp, _ = flag.MakeHelpFlag()
 
 const placeholderRandomness = "PLCEHOLD"
 const placeholderSHA256 = "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
+
+var base64SHA256Length = base64.RawURLEncoding.EncodedLen(sha256.Size)
+
+const maxPrefixLength = 12 // arbitrarily picked number that is probably already impossible
 
 func main() {
 	flag.SetHelpTitles(
@@ -77,6 +81,9 @@ func main() {
 		os.Exit(4)
 	} else if !json.Valid([]byte(*createContent)) {
 		_, _ = fmt.Fprintf(os.Stderr, "Invalid create event content\n")
+		os.Exit(4)
+	} else if len(*prefix) > maxPrefixLength {
+		_, _ = fmt.Fprintf(os.Stderr, "Prefix too long, must be at most %d characters\n", maxPrefixLength)
 		os.Exit(4)
 	}
 	createContentJSON := json.RawMessage(*createContent)
@@ -123,20 +130,24 @@ func doBruteforce(threadID uint16, pduJSON, pduJSONWithHashField, prefix []byte,
 	if len(placeholderRandomness) != randomnessEncodedLength {
 		panic("Placeholder randomness length mismatch")
 	}
+	pduRandomSlot := pduJSON[pduRandomIndex : pduRandomIndex+randomnessEncodedLength]
+	pduWithHashRandomSlot := pduJSONWithHashField[pduHashRandomIndex : pduHashRandomIndex+randomnessEncodedLength]
+	pduHashSlot := pduJSONWithHashField[pduHashIndex : pduHashIndex+base64SHA256Length]
+
 	hasher := sha256.New()
 	hashContainer := make([]byte, sha256.Size)
-	eventID := make([]byte, base64.RawURLEncoding.EncodedLen(sha256.Size))
+	eventID := make([]byte, base64SHA256Length)
 
 	start := time.Now()
 	lastChunk := start
 	for {
 		i++
-		base64.RawURLEncoding.Encode(pduJSON[pduRandomIndex:], randomness)
-		copy(pduJSONWithHashField[pduHashRandomIndex:], pduJSON[pduRandomIndex:pduRandomIndex+randomnessEncodedLength])
+		base64.RawURLEncoding.Encode(pduRandomSlot, randomness)
+		copy(pduWithHashRandomSlot, pduRandomSlot)
 		hasher.Reset()
 		hasher.Write(pduJSON)
 		hasher.Sum(hashContainer[:0])
-		base64.RawURLEncoding.Encode(pduJSONWithHashField[pduHashIndex:], hashContainer)
+		base64.RawURLEncoding.Encode(pduHashSlot, hashContainer)
 		hasher.Reset()
 		hasher.Write(pduJSONWithHashField)
 		hasher.Sum(hashContainer[:0])

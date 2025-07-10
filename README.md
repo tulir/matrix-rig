@@ -1,7 +1,6 @@
 # matrix-rig
-Vanity room ID generator for potential future Matrix room versions using
-[MSC4051](https://github.com/matrix-org/matrix-spec-proposals/pull/4051)
-or equivalent.
+Vanity room ID generator for future Matrix room versions using
+[MSC4291](https://github.com/matrix-org/matrix-spec-proposals/pull/4291).
 
 ## Usage
 Use `-h` to find available flags. `-u` and `-p` are the only necessary
