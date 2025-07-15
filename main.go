@@ -33,7 +33,6 @@ type CreatePDU struct {
 	PrevEvents     []string        `json:"prev_events"`
 	Depth          int             `json:"depth"`
 	Hashes         *Hashes         `json:"hashes,omitempty"`
-	Origin         string          `json:"origin"`
 	OriginServerTS int64           `json:"origin_server_ts"`
 	Sender         id.UserID       `json:"sender"`
 	StateKey       string          `json:"state_key"`
@@ -93,7 +92,6 @@ func main() {
 		PrevEvents:     []string{},
 		Depth:          1,
 		Hashes:         nil,
-		Origin:         creatorUserID.Homeserver(),
 		OriginServerTS: *timestamp,
 		Sender:         creatorUserID,
 		StateKey:       "",
@@ -147,7 +145,7 @@ func doBruteforce(threadID uint16, pduJSON, pduJSONWithHashField, prefix []byte,
 		hasher.Reset()
 		hasher.Write(pduJSON)
 		hasher.Sum(hashContainer[:0])
-		base64.RawURLEncoding.Encode(pduHashSlot, hashContainer)
+		base64.RawStdEncoding.Encode(pduHashSlot, hashContainer)
 		hasher.Reset()
 		hasher.Write(pduJSONWithHashField)
 		hasher.Sum(hashContainer[:0])
