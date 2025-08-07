@@ -47,7 +47,7 @@ type Hashes struct {
 var timestamp = flag.MakeFull("t", "timestamp", "Timestamp of the create event (defaults to current time)", strconv.FormatInt(time.Now().UnixMilli(), 10)).Int64()
 var creator = flag.MakeFull("u", "user_id", "User ID of the room creator", "").String()
 var prefix = flag.MakeFull("p", "prefix", "Prefix for the room ID", "").String()
-var createContent = flag.MakeFull("c", "content", "Create event content", `{"room_version":"org.matrix.msc4291"}`).String()
+var createContent = flag.MakeFull("c", "content", "Create event content", `{"room_version":"12"}`).String()
 var threadCount = flag.MakeFull("k", "threads", "Number of threads to use for bruteforcing", "1").Uint16()
 var logInterval = flag.MakeFull("l", "log-interval", "How many hashes to check before logging status?", "1000000").Uint32()
 var maxSeconds = flag.MakeFull("m", "max-seconds", "Time limit for the bruteforce in seconds", "30").Int()
