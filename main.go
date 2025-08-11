@@ -19,6 +19,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/exgjson"
@@ -154,6 +155,16 @@ func doBruteforce(threadID uint16, pduJSON, pduJSONWithHashField, prefix []byte,
 			formedRoomID := id.RoomID(fmt.Sprintf("!%s", eventID))
 			_, _ = fmt.Fprintln(os.Stderr, "Thread ID", threadID, "iterated over", chunks*chunkSize+i, "hashes in", time.Since(start).String(), "and found", formedRoomID)
 			fmt.Println(string(pduJSONWithHashField))
+
+			createContentJSON := gjson.GetBytes(pduJSON, "content").Raw
+			roomVersion := gjson.Get(createContentJSON, "room_version").Str
+			createContentJSON = exerrors.Must(sjson.Delete(createContentJSON, "room_version"))
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
+				"fi.mau.origin_server_ts": *timestamp,
+				"fi.mau.room_id":          formedRoomID,
+				"creation_content":        json.RawMessage(createContentJSON),
+				"room_version":            roomVersion,
+			})
 			os.Exit(0)
 		}
 		if i == chunkSize {
