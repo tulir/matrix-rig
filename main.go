@@ -16,6 +16,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -50,8 +51,9 @@ var creator = flag.MakeFull("u", "user_id", "User ID of the room creator", "").S
 var prefix = flag.MakeFull("p", "prefix", "Prefix for the room ID", "").String()
 var createContent = flag.MakeFull("c", "content", "Create event content", `{"room_version":"12"}`).String()
 var threadCount = flag.MakeFull("k", "threads", "Number of threads to use for bruteforcing", "1").Uint16()
+var threadIndexStart = flag.MakeFull("i", "index-start", "Starting index for thread IDs (useful for running multiple instances)", "0").Uint16()
 var logInterval = flag.MakeFull("l", "log-interval", "How many hashes to check before logging status?", "1000000").Uint32()
-var maxSeconds = flag.MakeFull("m", "max-seconds", "Time limit for the bruteforce in seconds", "30").Int()
+var maxSeconds = flag.MakeFull("m", "max-seconds", "Time limit for the bruteforce in seconds (-1 for unlimited)", "30").Int()
 var wantHelp, _ = flag.MakeHelpFlag()
 
 const placeholderRandomness = "PLCEHOLD"
@@ -104,17 +106,33 @@ func main() {
 	createPDU.Hashes = &Hashes{SHA256: placeholderSHA256}
 	pduJSONWithHashField := exerrors.Must(json.Marshal(createPDU))
 	pduJSONWithHashField = canonicaljson.CanonicalJSONAssumeValid(pduJSONWithHashField)
-	for i := uint16(0); i < *threadCount; i++ {
-		go doBruteforce(i, bytes.Clone(pduJSON), bytes.Clone(pduJSONWithHashField), []byte(*prefix), *logInterval)
-		time.Sleep(time.Duration(500 / *threadCount) * time.Millisecond)
+	var wg sync.WaitGroup
+	for {
+		if int(*threadIndexStart)+int(*threadCount) > math.MaxUint16 {
+			_, _ = fmt.Fprintf(os.Stderr, "Thread index %d + %d exceeds uint16 limit\n", *threadIndexStart, *threadCount)
+			break
+		}
+		wg.Add(int(*threadCount))
+		for i := uint16(0); i < *threadCount; i++ {
+			go doBruteforce(*threadIndexStart+i, bytes.Clone(pduJSON), bytes.Clone(pduJSONWithHashField), []byte(*prefix), *logInterval, wg.Done)
+			time.Sleep(time.Duration(500 / *threadCount) * time.Millisecond)
+		}
+		if *maxSeconds < 0 {
+			wg.Wait()
+			fmt.Println("No solutions found, incrementing thread index start")
+			*threadIndexStart += *threadCount
+		} else {
+			timeLimit := time.Duration(*maxSeconds) * time.Second
+			time.Sleep(timeLimit)
+			fmt.Println("No solution found in", timeLimit)
+			break
+		}
 	}
-	timeLimit := time.Duration(*maxSeconds) * time.Second
-	time.Sleep(timeLimit)
-	fmt.Println("No solution found in", timeLimit)
 	os.Exit(1)
 }
 
-func doBruteforce(threadID uint16, pduJSON, pduJSONWithHashField, prefix []byte, chunkSize uint32) {
+func doBruteforce(threadID uint16, pduJSON, pduJSONWithHashField, prefix []byte, chunkSize uint32, doneFunc func()) {
+	defer doneFunc()
 	pduRandomIndex := bytes.Index(pduJSON, []byte(placeholderRandomness))
 	pduHashRandomIndex := bytes.Index(pduJSONWithHashField, []byte(placeholderRandomness))
 	pduHashIndex := bytes.Index(pduJSONWithHashField, []byte(placeholderSHA256))
